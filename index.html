@@ -48,6 +48,7 @@
   .t-edu{color:#7a4a00;background:#fffaf0;border-color:#f0dfae}
   .t-pos,.t-pay,.t-exp,.t-subj{color:#8a5a00;background:#fffdf2;border-color:#efe3b8}
   .none{color:#9aa0a6}
+  .nowrap{white-space:nowrap}
   .mini{border:1px solid var(--line);border-radius:6px;padding:2px 9px;font-size:12px;background:#fff;color:var(--sub);cursor:pointer}
   .mini:hover{color:var(--accent);border-color:var(--accent)}
   .hide{display:none}
@@ -465,7 +466,7 @@ var Engine = (function () {
     var time = it.time ? esc(it.time) : '<span class="none">—</span>';
     var gender = it.gender === 'female' ? '女' : it.gender === 'male' ? '男' : '不限';
     return '<tr class="r ' + it.verdict + '" data-i="' + i + '">'
-      + '<td>' + v + '</td><td class="id">' + esc(it.id || '(无号)') + '</td><td>' + g + '</td><td>' + subj + '</td><td>' + area + '</td>'
+      + '<td>' + v + '</td><td class="id">' + esc(it.id || '(无号)') + '</td><td>' + g + '</td><td>' + subj + '</td><td class="nowrap">' + area + '</td>'
       + '<td class="pay">' + pay + '</td><td>' + time + '</td><td>' + gender + '</td><td>' + tags + '</td>'
       + '<td><button class="mini" data-copy="' + i + '" title="复制这条家教单原文">复制</button></td></tr>'
       + '<tr class="rawrow hide"><td colspan="10"><pre>' + esc(it.raw) + '</pre></td></tr>';
