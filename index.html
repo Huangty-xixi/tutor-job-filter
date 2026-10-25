@@ -56,6 +56,8 @@
   .hist-item .p{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .hist-item button{padding:1px 8px;font-size:12px}
   .nowrap{white-space:nowrap}
+  .tb td.sel{width:26px;text-align:center;padding-left:6px;padding-right:2px}
+  .tb td.sel input,.tb th input{accent-color:var(--accent);cursor:pointer}
   .mini{border:1px solid var(--line);border-radius:6px;padding:2px 9px;font-size:12px;background:#fff;color:var(--sub);cursor:pointer}
   .mini:hover{color:var(--accent);border-color:var(--accent)}
   .hide{display:none}
@@ -76,6 +78,7 @@
       <div class="btns">
         <button class="primary" id="run">筛选</button>
         <button id="copy">复制能投的（含原文）</button>
+        <button id="copySel">复制选中（0）</button>
         <button id="csv">导出 CSV</button>
         <button id="demo">填样例</button>
         <button id="clear">清空</button>
@@ -119,6 +122,7 @@
         <table class="tb">
           <thead>
             <tr>
+              <th class="nosort" style="width:26px"><input type="checkbox" id="selAll" title="全选当前列表"></th>
               <th class="nosort">判定</th>
               <th data-k="id">单号</th>
               <th data-k="grade">年级</th>
@@ -403,6 +407,7 @@ var Engine = (function () {
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var last = [], filter = 'all', sortKey = 'verdict', sortDir = 1;
+  var selected = {};
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
   function tagClass(m) {
@@ -466,6 +471,7 @@ var Engine = (function () {
     };
   }
 
+  function itemKey(it) { return it.id ? 'id:' + it.id : 'raw:' + String(it.raw || '').slice(0, 80); }
   function rowHtml(it, i) {
     var v = it.verdict === 'ok' ? '✅' : it.verdict === 'warn' ? '⚠️' : '❌';
     var tags = [].concat(it.reasons || [], it.soft || []).map(function (m) {
@@ -477,11 +483,13 @@ var Engine = (function () {
     var area = it.area.name || '<span class="none">—</span>';
     var time = it.time ? esc(it.time) : '<span class="none">—</span>';
     var gender = it.gender === 'female' ? '女' : it.gender === 'male' ? '男' : '不限';
+    var checked = selected[itemKey(it)] ? ' checked' : '';
     return '<tr class="r ' + it.verdict + '" data-i="' + i + '">'
+      + '<td class="sel"><input type="checkbox" data-sel="' + i + '"' + checked + '></td>'
       + '<td>' + v + '</td><td class="id">' + esc(it.id || '(无号)') + '</td><td>' + g + '</td><td>' + subj + '</td><td class="nowrap">' + area + '</td>'
       + '<td class="pay">' + pay + '</td><td>' + time + '</td><td>' + gender + '</td><td>' + tags + '</td>'
       + '<td><button class="mini" data-copy="' + i + '" title="复制这条家教单原文">复制</button></td></tr>'
-      + '<tr class="rawrow hide"><td colspan="10"><pre>' + esc(it.raw) + '</pre></td></tr>';
+      + '<tr class="rawrow hide"><td colspan="11"><pre>' + esc(it.raw) + '</pre></td></tr>';
   }
 
   function visible() {
@@ -490,6 +498,10 @@ var Engine = (function () {
 
   function render() {
     last = Engine.run($('raw').value, cfg());
+    // 重新解析后只保留仍然存在的勾选
+    var alive = {};
+    last.forEach(function (it) { alive[itemKey(it)] = 1; });
+    Object.keys(selected).forEach(function (k) { if (!alive[k]) delete selected[k]; });
     var n = { ok: 0, warn: 0, bad: 0 };
     last.forEach(function (x) { n[x.verdict]++; });
     $('stat').innerHTML = '共 <b>' + last.length + '</b> 条 ｜ ✅ 可投 <b>' + n.ok + '</b> ｜ ⚠️ 差一条 <b>' + n.warn + '</b> ｜ ❌ 不符合 <b>' + n.bad + '</b>';
@@ -499,10 +511,21 @@ var Engine = (function () {
       return (x > y ? 1 : -1) * sortDir;
     });
     $('out').innerHTML = list.map(function (it) { return rowHtml(it, last.indexOf(it)); }).join('')
-      || '<tr><td colspan="10" class="none" style="padding:16px">没有结果</td></tr>';
+      || '<tr><td colspan="11" class="none" style="padding:16px">没有结果</td></tr>';
+    updateSelUI();
+  }
+
+  function updateSelUI() {
+    var count = Object.keys(selected).length;
+    $('copySel').textContent = '复制选中（' + count + '）';
+    var boxes = [].slice.call(document.querySelectorAll('#out input[data-sel]'));
+    var all = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    $('selAll').checked = all;
+    $('selAll').indeterminate = !all && boxes.some(function (b) { return b.checked; });
   }
 
   $('out').addEventListener('click', function (e) {
+    if (e.target.closest('input[data-sel]')) { e.stopPropagation(); return; }
     var btn = e.target.closest('[data-copy]');
     if (btn) {
       e.stopPropagation();
@@ -548,7 +571,40 @@ var Engine = (function () {
     });
   });
   $('run').addEventListener('click', render);
-  $('clear').addEventListener('click', function () { $('raw').value = ''; $('out').innerHTML = ''; $('stat').textContent = '还没有结果'; });
+  $('clear').addEventListener('click', function () {
+    $('raw').value = ''; $('out').innerHTML = ''; $('stat').textContent = '还没有结果';
+    last = []; selected = {}; updateSelUI();
+  });
+  $('out').addEventListener('change', function (e) {
+    var cb = e.target.closest('input[data-sel]');
+    if (!cb) return;
+    var it = last[Number(cb.getAttribute('data-sel'))];
+    if (!it) return;
+    if (cb.checked) selected[itemKey(it)] = 1; else delete selected[itemKey(it)];
+    updateSelUI();
+  });
+  $('selAll').addEventListener('change', function () {
+    var on = $('selAll').checked;
+    [].slice.call(document.querySelectorAll('#out input[data-sel]')).forEach(function (cb) {
+      var it = last[Number(cb.getAttribute('data-sel'))];
+      if (!it) return;
+      cb.checked = on;
+      if (on) selected[itemKey(it)] = 1; else delete selected[itemKey(it)];
+    });
+    updateSelUI();
+  });
+  $('copySel').addEventListener('click', function () {
+    var list = last.filter(function (it) { return selected[itemKey(it)]; });
+    if (!list.length) return alert('先勾选要复制的家教单');
+    var text = list.map(function (it) {
+      return (it.id ? it.id + '｜' : '') + (it.grade || '') + ' ' + ((it.subjects || []).join('/') || '') + (it.pay ? '｜' + Math.round(it.pay.hourly) + '/h' : '') + '\n' + it.raw;
+    }).join('\n\n──────\n\n');
+    copyText(text).then(function () {
+      var old = $('copySel').textContent;
+      $('copySel').textContent = '已复制 ' + list.length + ' 条';
+      setTimeout(function () { $('copySel').textContent = old; }, 1500);
+    }, function () { alert('复制失败，可以手动选中文本复制'); });
+  });
   $('demo').addEventListener('click', function () {
     $('raw').value = DEMO;
     render();
