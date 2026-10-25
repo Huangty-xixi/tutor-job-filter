@@ -48,6 +48,13 @@
   .t-edu{color:#7a4a00;background:#fffaf0;border-color:#f0dfae}
   .t-pos,.t-pay,.t-exp,.t-subj{color:#8a5a00;background:#fffdf2;border-color:#efe3b8}
   .none{color:#9aa0a6}
+  .mini-sum{cursor:pointer;font-size:12.5px;color:var(--sub);margin:8px 0 0;user-select:none}
+  .hist{max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px}
+  .hist-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid #f0f2f5;font-size:12.5px}
+  .hist-item:last-child{border-bottom:none}
+  .hist-item .t{color:var(--sub);white-space:nowrap}
+  .hist-item .p{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hist-item button{padding:1px 8px;font-size:12px}
   .nowrap{white-space:nowrap}
   .mini{border:1px solid var(--line);border-radius:6px;padding:2px 9px;font-size:12px;background:#fff;color:var(--sub);cursor:pointer}
   .mini:hover{color:var(--accent);border-color:var(--accent)}
@@ -73,6 +80,11 @@
         <button id="demo">填样例</button>
         <button id="clear">清空</button>
       </div>
+      <details id="histWrap">
+        <summary class="mini-sum">历史粘贴（<span id="histCount">0</span>）</summary>
+        <div class="hist" id="hist"></div>
+        <div class="btns"><button class="mini" id="histClear">清空历史</button><span class="tip">只存在这台电脑的浏览器里，最多留 20 条</span></div>
+      </details>
       <div class="tip">判不出来的时候，把那条原文发 issue，我改规则。</div>
     </div>
 
@@ -574,7 +586,76 @@ var Engine = (function () {
   document.querySelectorAll('.g,.a,.s,#minPay,#primaryMin,#maleOnly,#hardOnly').forEach(function (el) {
     el.addEventListener('change', function () { if ($('raw').value.trim()) render(); });
   });
-  $('raw').addEventListener('input', function () { if ($('raw').value.trim().length > 40) render(); });
+  $('raw').addEventListener('input', function () {
+    if ($('raw').value.trim().length > 40) render();
+    scheduleHistory();
+  });
+
+  // ── 历史粘贴（存在本机浏览器 localStorage，最多 20 条）──
+  var HIST_KEY = 'tutorHistory';
+  var histTimer = null;
+  function readHist() { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { return []; } }
+  function writeHist(list) { try { localStorage.setItem(HIST_KEY, JSON.stringify(list)); } catch (e) {} }
+  function scheduleHistory() {
+    clearTimeout(histTimer);
+    histTimer = setTimeout(function () { pushHistory($('raw').value); }, 1500);
+  }
+  function pushHistory(text) {
+    text = String(text || '').trim();
+    if (text.length < 10) return;
+    var list = readHist();
+    if (list[0] && list[0].text === text) return;
+    var count = 0;
+    try { count = Engine.parse(text).length; } catch (e) { count = 0; }
+    list.unshift({ at: Date.now(), text: text, count: count });
+    var out = [], total = 0;
+    for (var i = 0; i < list.length; i++) {
+      total += list[i].text.length;
+      if (i >= 20 || total > 400000) break;
+      out.push(list[i]);
+    }
+    writeHist(out); renderHistory();
+  }
+  function fmtTime(ts) {
+    var d = new Date(ts), p = function (n) { return String(n).padStart(2, '0'); };
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function renderHistory() {
+    var list = readHist();
+    $('histCount').textContent = list.length;
+    $('hist').innerHTML = list.map(function (it, i) {
+      var head = it.text.replace(/\s+/g, ' ').slice(0, 42);
+      return '<div class="hist-item">'
+        + '<span class="t">' + fmtTime(it.at) + '</span>'
+        + '<span class="p">' + esc(head) + '</span>'
+        + '<span class="t">' + (it.count || 0) + '条</span>'
+        + '<button class="mini" data-load="' + i + '">载入</button>'
+        + '<button class="mini" data-del="' + i + '">删</button>'
+        + '</div>';
+    }).join('') || '<div class="hist-item"><span class="t">还没有历史，粘贴一次就自动记下来</span></div>';
+  }
+  $('hist').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-load],button[data-del]');
+    if (!b) return;
+    var list = readHist();
+    if (b.hasAttribute('data-load')) {
+      var i = Number(b.getAttribute('data-load'));
+      if (!list[i]) return;
+      $('raw').value = list[i].text;
+      var item = list.splice(i, 1)[0];
+      list.unshift(item);
+      writeHist(list);
+      render(); renderHistory();
+    } else {
+      list.splice(Number(b.getAttribute('data-del')), 1);
+      writeHist(list); renderHistory();
+    }
+  });
+  $('histClear').addEventListener('click', function () {
+    if (!confirm('清空全部历史粘贴？')) return;
+    writeHist([]); renderHistory();
+  });
+  renderHistory();
 
   var DEMO = [
     'ACS00000001',
