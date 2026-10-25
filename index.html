@@ -48,6 +48,8 @@
   .t-edu{color:#7a4a00;background:#fffaf0;border-color:#f0dfae}
   .t-pos,.t-pay,.t-exp,.t-subj{color:#8a5a00;background:#fffdf2;border-color:#efe3b8}
   .none{color:#9aa0a6}
+  .mini{border:1px solid var(--line);border-radius:6px;padding:2px 9px;font-size:12px;background:#fff;color:var(--sub);cursor:pointer}
+  .mini:hover{color:var(--accent);border-color:var(--accent)}
   .hide{display:none}
   .tip{color:var(--sub);font-size:12px;margin-top:6px}
 </style>
@@ -113,6 +115,7 @@
               <th data-k="time">时间</th>
               <th data-k="gender">性别</th>
               <th class="nosort">卡点</th>
+              <th class="nosort">操作</th>
             </tr>
           </thead>
           <tbody id="out"></tbody>
@@ -463,8 +466,9 @@ var Engine = (function () {
     var gender = it.gender === 'female' ? '女' : it.gender === 'male' ? '男' : '不限';
     return '<tr class="r ' + it.verdict + '" data-i="' + i + '">'
       + '<td>' + v + '</td><td class="id">' + esc(it.id || '(无号)') + '</td><td>' + g + '</td><td>' + subj + '</td><td>' + area + '</td>'
-      + '<td class="pay">' + pay + '</td><td>' + time + '</td><td>' + gender + '</td><td>' + tags + '</td></tr>'
-      + '<tr class="rawrow hide"><td colspan="9"><pre>' + esc(it.raw) + '</pre></td></tr>';
+      + '<td class="pay">' + pay + '</td><td>' + time + '</td><td>' + gender + '</td><td>' + tags + '</td>'
+      + '<td><button class="mini" data-copy="' + i + '" title="复制这条家教单原文">复制</button></td></tr>'
+      + '<tr class="rawrow hide"><td colspan="10"><pre>' + esc(it.raw) + '</pre></td></tr>';
   }
 
   function visible() {
@@ -482,15 +486,39 @@ var Engine = (function () {
       return (x > y ? 1 : -1) * sortDir;
     });
     $('out').innerHTML = list.map(function (it) { return rowHtml(it, last.indexOf(it)); }).join('')
-      || '<tr><td colspan="9" class="none" style="padding:16px">没有结果</td></tr>';
+      || '<tr><td colspan="10" class="none" style="padding:16px">没有结果</td></tr>';
   }
 
   $('out').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-copy]');
+    if (btn) {
+      e.stopPropagation();
+      var it = last[Number(btn.getAttribute('data-copy'))];
+      if (!it) return;
+      var text = it.raw;
+      if (it.id && text.indexOf(it.id) < 0) text = '编号：' + it.id + '\n' + text;
+      copyText(text).then(function () {
+        var old = btn.textContent;
+        btn.textContent = '已复制';
+        setTimeout(function () { btn.textContent = old; }, 1200);
+      });
+      return;
+    }
     var tr = e.target.closest('tr.r');
     if (!tr) return;
     var raw = tr.nextElementSibling;
     if (raw && raw.classList.contains('rawrow')) raw.classList.toggle('hide');
   });
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); resolve(); } catch (err) { reject(err); }
+      document.body.removeChild(ta);
+    });
+  }
   document.querySelectorAll('.tb th[data-k]').forEach(function (th) {
     th.addEventListener('click', function () {
       var k = th.getAttribute('data-k');
