@@ -292,7 +292,7 @@ var Engine = (function () {
     if (/(物理专业|数学专业|汉语言|体育教育|法学|数学系)/.test(block)) hard.push('专业限定');
     if (/(国防科大|湖南师范|一师范|长理|长沙理工|师范大学)/.test(block)) hard.push('院校限定');
     if (/信息费/.test(block)) hard.push('信息费');
-    if (/(全职|坐班|签一年|签.{0,2}合同)/.test(block)) hard.push('全职/长约');
+    if (/(专职|全职|坐班|签一年|签.{0,2}合同)/.test(block)) hard.push('要专职/全职');
     if (NOT_TUTOR.test(block) && !TUTOR_OK.test(block)) hard.push('非家教岗');
     if (/(高考成绩|高考分|高考.{0,6}成绩|130\s*\+|学信网)/.test(block)) soft.push('要高考成绩');
     if (/(经验丰富|带过四大名校|较长.{0,3}高三|多年经验)/.test(block)) soft.push('要丰富经验');

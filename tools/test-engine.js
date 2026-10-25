@@ -73,5 +73,11 @@ check('时薪解析：220/2h', Math.round(Engine.parsePay('价格：220/2h').hou
 check('时薪解析：100一次', Math.round(Engine.parsePay('【薪资】100一次').hourly) === 50);
 check('时薪解析：400/天', Math.round(Engine.parsePay('课酬：400/天').hourly) === 50);
 
+const zhi = Engine.run('编号：Z1\n科目：高一数学\n价格：180-200/h\n要求：专职老师，能长期带\n地址：岳麓区某某里', cfg);
+check('专职老师单被排除', zhi[0] && zhi[0].verdict === 'bad' && zhi[0].reasons.join('').includes('专职'), zhi[0] && zhi[0].reasons.join(';'));
+
+const parttime = Engine.run('编号：Z2\n科目：高一数学\n价格：180-200/h\n要求：大学生兼职即可，周末上课\n地址：岳麓区某某里', cfg);
+check('兼职大学生单不被误杀', parttime[0] && parttime[0].verdict === 'ok', parttime[0] && [].concat(parttime[0].reasons, parttime[0].soft).join(';'));
+
 console.log('\n' + (failed ? '失败 ' + failed + ' 项' : '全部通过'));
 process.exit(failed ? 1 : 0);
