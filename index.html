@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>家教单筛选器</title>
+<meta name="description" content="把中介发的家教单整段粘进来，按年级、科目、距离、时薪自动筛选。单文件、零依赖、不联网。">
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--line:#e3e6eb;--txt:#1d2129;--sub:#6b7280;--ok:#0f7b3f;--warn:#8a5a00;--bad:#a11b1b;--accent:#2b5bd7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.6 "Microsoft YaHei",system-ui,-apple-system,sans-serif}
+  header{padding:16px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:17px}
+  header p{margin:4px 0 0;color:var(--sub);font-size:12.5px}
+  .wrap{display:grid;grid-template-columns:330px 1fr;gap:14px;padding:14px;align-items:start}
+  @media (max-width:900px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .card h2{font-size:13px;margin:0 0 8px;color:var(--sub);font-weight:600;letter-spacing:.02em}
+  label.row{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:13px}
+  label.row input{accent-color:var(--accent)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}
+  #raw{width:100%;height:210px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:10px;font:12.5px/1.6 Consolas,"Microsoft YaHei",monospace}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button:hover{filter:brightness(.97)}
+  .stat{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px;font-size:13px;color:var(--sub);align-items:center}
+  .stat b{color:var(--txt)}
+  .tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 11px;font-size:12.5px;cursor:pointer;color:var(--sub)}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tablewrap{overflow:auto;max-height:calc(100vh - 190px);border:1px solid var(--line);border-radius:10px;background:#fff}
+  table.tb{border-collapse:collapse;width:100%;font-size:13px;min-width:860px}
+  .tb th{position:sticky;top:0;z-index:1;background:#f3f5f8;text-align:left;font-weight:600;color:var(--sub);font-size:12.5px;padding:8px 9px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+  .tb th.nosort{cursor:default}
+  .tb td{padding:7px 9px;border-bottom:1px solid #f0f2f5;vertical-align:top}
+  .tb tr.r{cursor:pointer}
+  .tb tr.r:hover td{background:#fafbff}
+  .tb tr.r.ok td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
+  .tb tr.r.warn td:first-child{box-shadow:inset 4px 0 0 #d9a400}
+  .tb tr.r.bad td:first-child{box-shadow:inset 4px 0 0 #d9534f}
+  .tb tr.r.bad{color:#5f6368}
+  .tb tr.rawrow td{background:#fafbfc;padding:10px 12px}
+  .tb pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12.5px/1.7 Consolas,"Microsoft YaHei",monospace;color:#333}
+  .id{font-weight:600}
+  .pay{font-weight:600}
+  .tag{display:inline-block;font-size:11.5px;line-height:1.5;padding:1px 7px;border-radius:999px;margin:0 4px 3px 0;border:1px solid #e3e6eb;color:#334;background:#f5f6f8}
+  .t-gender{color:#a11b1b;background:#fff5f5;border-color:#f2cccc}
+  .t-edu{color:#7a4a00;background:#fffaf0;border-color:#f0dfae}
+  .t-pos,.t-pay,.t-exp,.t-subj{color:#8a5a00;background:#fffdf2;border-color:#efe3b8}
+  .none{color:#9aa0a6}
+  .hide{display:none}
+  .tip{color:var(--sub);font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>家教单筛选器</h1>
+  <p>把中介发的一整段文字粘进来，自动按年级、科目、距离、时薪筛成「可投 / 差一条 / 不符合」。原文一字不改地保留。纯本地运行，不联网。</p>
+</header>
+
+<div class="wrap">
+  <div>
+    <div class="card">
+      <h2>① 粘贴原始信息</h2>
+      <textarea id="raw" placeholder="把微信里整段复制进来，可以一次贴几十条，格式不用整理。粘贴后自动筛选。"></textarea>
+      <div class="btns">
+        <button class="primary" id="run">筛选</button>
+        <button id="copy">复制能投的（含原文）</button>
+        <button id="csv">导出 CSV</button>
+        <button id="demo">填样例</button>
+        <button id="clear">清空</button>
+      </div>
+      <div class="tip">判不出来的时候，把那条原文发 issue，我改规则。</div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h2>② 条件</h2>
+      <div class="grid2" id="gradeBox"></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:10px 0">
+      <div class="meta" style="margin-bottom:4px;color:var(--sub);font-size:12.5px">能教的科目</div>
+      <div class="grid2" id="subjBox"></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:10px 0">
+      <label class="row">初高中时薪 ≥ <input type="number" id="minPay" value="90" min="0" step="5" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:3px 6px"> 元/h</label>
+      <label class="row">小学时薪 ≥ <input type="number" id="primaryMin" value="60" min="0" step="5" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:3px 6px"> 元/h</label>
+      <label class="row"><input type="checkbox" id="maleOnly" checked>只要男老师能接的（排除“女老师/女优先”）</label>
+      <label class="row"><input type="checkbox" id="hardOnly" checked>排除硬门槛（研究生/已毕业/大四/教资/专业院校限定/信息费/全职）</label>
+      <hr style="border:none;border-top:1px solid var(--line);margin:10px 0">
+      <div class="meta" style="margin-bottom:4px;color:var(--sub);font-size:12.5px">能接受的距离</div>
+      <div class="grid2" id="areaBox"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="stat">
+        <span id="stat">还没有结果</span>
+        <span style="flex:1"></span>
+        <button class="tab on" data-f="all">全部</button>
+        <button class="tab" data-f="ok">可投</button>
+        <button class="tab" data-f="warn">差一条</button>
+        <button class="tab" data-f="bad">不符合</button>
+      </div>
+      <div class="tablewrap">
+        <table class="tb">
+          <thead>
+            <tr>
+              <th class="nosort">判定</th>
+              <th data-k="id">单号</th>
+              <th data-k="grade">年级</th>
+              <th data-k="subj">科目</th>
+              <th data-k="area">位置</th>
+              <th data-k="pay">时薪</th>
+              <th data-k="time">时间</th>
+              <th data-k="gender">性别</th>
+              <th class="nosort">卡点</th>
+            </tr>
+          </thead>
+          <tbody id="out"></tbody>
+        </table>
+      </div>
+      <div class="tip">点任意一行展开该条原始信息；点表头排序；点上面的按钮只显示那一类。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   配置区：换城市 / 换默认条件，只改这一块
+   ══════════════════════════════════════════════════════════════ */
+/* CONFIG-START */
+var CONFIG = {
+  city: {
+    name: '长沙',
+    // [区级匹配, 显示名, 距离档位]  1=近 2=中 3=远 4=外地 5=线上
+    districts: [
+      [/岳麓/, '岳麓区', 1],
+      [/雨花/, '雨花区', 2],
+      [/天心/, '天心区', 2],
+      [/开福/, '开福区', 2],
+      [/芙蓉/, '芙蓉区', 2],
+      [/望城/, '望城区', 3],
+      [/长沙县|星沙/, '长沙县', 3],
+      [/株洲|湘潭|衡阳|邵阳|洞口|海口|廊坊|固安|怀化|岳阳|常德|益阳|攸县/, '外地', 4]
+    ],
+    // 只写了小区/地铁站、没写区时的兜底（按你的城市改）
+    places: [
+      [/大学城|梅溪湖|洋湖|观沙岭|麓云路|阜埠河|含浦|王家湾|桃子湖|中南|湖大|师大|后湖|天马|云栖谷|钰龙天下|金域滨江|振业城|达美|联丰苑|景秀江山|中交里城|北京御园|万科白鹭郡|曙光泊岸|山水洲|雅礼洋湖|龙湖|卓越|林海/, '岳麓区', 1],
+      [/洞井|井湾子|万家丽|东塘|高桥|红星|半山一号|明昇壹城|江河东澜湾|万科魅力|平吉上苑|盛世华章|新宇川河苑|嘉宇|圭塘|赤岗冲/, '雨花区', 2],
+      [/南门口|北辰中央公园|满庭芳|侯家塘|大托|星城书香苑|中信|铁道学院/, '天心区', 2],
+      [/湘江世纪城|北辰三角洲|藏珑|培元桥|保利时代|湖山赋|湘荷美苑|湘湘书香里|马栏山|月湖/, '开福区', 2],
+      [/汽车东站|马王堆|万悦汇|百纳公寓|教师村|滨湖小区|浏阳河/, '芙蓉区', 2],
+      [/春晖花园|澳海澜庭|正荣财富中心|勤诚达|联城雅郡|汉唐世家|时代倾城|李家湖|明发/, '望城区', 3],
+      [/青竹园|金广星苑|保利金香槟|湖湘奥林匹克|湘龙|会展三润/, '长沙县', 3]
+    ],
+    tiers: { 1: '近（约30分钟内）', 2: '中（30–50分钟）', 3: '远（1小时左右）', 4: '外地', 5: '线上' }
+  },
+  // 页面首次打开的默认勾选
+  defaults: {
+    grades: ['高一', '初一', '初二', '小学'],
+    subjects: ['数学', '物理'],
+    areas: [1, 5],
+    minPay: 90,
+    primaryMin: 60,
+    maleOnly: true,
+    hardOnly: true
+  },
+  // 科目复选框 → 实际匹配的标签
+  subjects: {
+    '数学': ['数学', '奥数'],
+    '物理': ['物理'],
+    '英语': ['英语'],
+    '全科': ['全科', '作业', '伴读'],
+    '其他': ['语文', '化学', '生物', '科学', '历史', '政治', '地理', '体能', '招生', '咨询']
+  }
+};
+/* CONFIG-END */
+/* ═══════════════════════ 配置区结束 ═══════════════════════ */
+
+/* ENGINE-START */
+var Engine = (function () {
+  var GRADES = ['职高高一', '新高二', '高一', '高二', '高三', '初一', '初二', '初三', '一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '小学', '初中', '高中', '小初高'];
+  var GRADE_CAT = { '职高高一': '高一', '新高二': '高二', '一年级': '小学', '二年级': '小学', '三年级': '小学', '四年级': '小学', '五年级': '小学', '六年级': '小学', '小学': '小学', '小初高': '小学', '初中': '初中', '高中': '其他' };
+  var SUBJECTS = ['数学', '物理', '英语', '化学', '生物', '语文', '奥数', '科学', '历史', '政治', '地理', '全科', '作业', '伴读', '体能', '咨询', '招生'];
+  var NOT_TUTOR = /(招生岗|教育咨询师|助教|住家陪读)/;
+  var TUTOR_OK = /(家教|辅导|作业|伴读|一对一|上门|线上|课酬|课时|时薪)/;
+
+  function norm(s) { return String(s || '').replace(/\u00a0/g, ' '); }
+
+  var ID_RES = [
+    /【编号】[：:]?\s*([^\s【】]+)/,
+    /【家庭单】\s*([A-Za-z0-9]+)/,
+    /\b(WY[^\s，。]{4,})/,
+    /\b([A-Z]{2,3}\d{5,}[A-Za-z]?)\b/,
+    /\b(b\d{4})\b/,
+    /\b(M\d{4})\b/,
+    /\b(长沙\d{4,})\b/,
+    /\b(\d{8,})\b/,
+    /\b([A-Z]{2,3}\d{2,4})\b/
+  ];
+
+  function pickId(block) {
+    for (var i = 0; i < ID_RES.length; i++) {
+      var m = block.match(ID_RES[i]);
+      if (m) return m[1].replace(/[（）()]$/, '');
+    }
+    return '';
+  }
+
+  function pickGrade(block) {
+    var t = block.replace(/([1-6])\s*年级/g, function (_, d) { return '一二三四五六'[Number(d) - 1] + '年级'; });
+    var lines = t.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (/年级|学员|孩子/.test(lines[i])) {
+        for (var g = 0; g < GRADES.length; g++) if (lines[i].indexOf(GRADES[g]) >= 0) return GRADES[g];
+      }
+    }
+    for (var g2 = 0; g2 < GRADES.length; g2++) if (t.indexOf(GRADES[g2]) >= 0) return GRADES[g2];
+    return '';
+  }
+
+  function pickSubjects(block) {
+    var out = [];
+    for (var i = 0; i < SUBJECTS.length; i++) if (block.indexOf(SUBJECTS[i]) >= 0) out.push(SUBJECTS[i]);
+    return out;
+  }
+
+  function pickTime(block) {
+    var lines = block.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (/(上课时间|时间安排|辅导时间|时间|次数|时间段)[:：]/.test(lines[i])) {
+        var v = lines[i].replace(/^[\s【\[]*[^:：]*[:：]/, '').trim();
+        if (v) return v.slice(0, 42);
+      }
+    }
+    var m = block.match(/(周[一二三四五六日末]|每周末|工作日)[^，。\n]{0,16}/);
+    return m ? m[0] : '';
+  }
+
+  function parsePay(block) {
+    var t = norm(block).replace(/[，,。；;]/g, ' ').replace(/\s+/g, ' ');
+    var m, n = Number;
+    m = t.match(/(\d{2,4})\s*[-~－—到]\s*(\d{2,4})\s*(?:元)?\s*\/\s*(?:h|H|小时|时)/);
+    if (m) return { low: n(m[1]), high: n(m[2]), hourly: n(m[1]), text: m[0] };
+    m = t.match(/(\d{2,4})\s*[-~－—到]\s*(\d{2,4})\s*(?:元)?\s*(?:每|一)小时/);
+    if (m) return { low: n(m[1]), high: n(m[2]), hourly: n(m[1]), text: m[0] };
+    m = t.match(/(\d{2,4})\s*(?:元)?\s*\/\s*(?:h|H|小时|时)/);
+    if (m) return { low: n(m[1]), high: n(m[1]), hourly: n(m[1]), text: m[0] };
+    m = t.match(/(?:每小时|一小时)\s*(\d{2,4})/);
+    if (m) return { low: n(m[1]), high: n(m[1]), hourly: n(m[1]), text: m[0] };
+    m = t.match(/(\d{2,4})\s*(?:元)?\s*(?:每|一)小时/);
+    if (m) return { low: n(m[1]), high: n(m[1]), hourly: n(m[1]), text: m[0] };
+    m = t.match(/(\d{2,4})\s*[-~－—到]\s*(\d{2,4})\s*(?:元)?\s*\/\s*2\s*h/i);
+    if (m) return { low: n(m[1]) / 2, high: n(m[2]) / 2, hourly: n(m[1]) / 2, text: m[0] };
+    m = t.match(/(\d{2,4})\s*(?:元)?\s*\/\s*2\s*h/i);
+    if (m) return { low: n(m[1]) / 2, high: n(m[1]) / 2, hourly: n(m[1]) / 2, text: m[0] };
+    m = t.match(/(\d{3,5})\s*(?:元)?\s*\/?\s*(?:天|一天)/);
+    if (m) return { low: n(m[1]) / 8, high: n(m[1]) / 8, hourly: n(m[1]) / 8, text: m[0] };
+    m = t.match(/(\d{2,4})\s*(?:元)?\s*(?:\/|每|一)?\s*次/);
+    if (m) return { low: n(m[1]) / 2, high: n(m[1]) / 2, hourly: n(m[1]) / 2, text: m[0] };
+    m = t.match(/(\d+)\s*[-~－—到]\s*(\d+)\s*k\b/i);
+    if (m) return { low: n(m[1]) * 1000, high: n(m[2]) * 1000, hourly: n(m[1]) * 1000 / 176, text: m[0] };
+    return null;
+  }
+
+  function pickGender(block) {
+    var t = block.replace(/男女/g, '双');
+    if (/男女不限|男女都|不限性别|性别[:：]\s*(?:不限|无|都可)|都行|都可/.test(block)) return 'any';
+    if (/双.{0,2}不限|双.{0,2}都/.test(t)) return 'any';
+    if (/女老师|女性优先|女优先|限女|只招女|性别[:：]\s*女|女大学生|女研究生/.test(t)) return 'female';
+    if (/男老师|男性优先|性别[:：]\s*男|男优先/.test(t)) return 'male';
+    return 'any';
+  }
+
+  function pickArea(block) {
+    var t = block;
+    if (/(线上|网课|腾讯会议)/.test(t)) return { name: '线上', tier: 5 };
+    var city = (typeof CONFIG !== 'undefined' && CONFIG.city) ? CONFIG.city : null;
+    var groups = city ? city.districts.concat(city.places) : [];
+    for (var i = 0; i < groups.length; i++) if (groups[i][0].test(t)) return { name: groups[i][1], tier: groups[i][2] };
+    var m = t.match(/([\u4e00-\u9fa5]{2,8}(?:小区|花园|苑|府|湾|城|里|公馆|家园|新村|广场|公寓|大厦|雅居|华章|天下))/);
+    return { name: m ? m[1] : '', tier: 0 };
+  }
+
+  function flags(block) {
+    var hard = [], soft = [];
+    if (/(研究生|已毕业|毕业或研究生|大四|应届毕业生)/.test(block)) hard.push('要研究生/已毕业');
+    if (/(教资|教师资格)/.test(block)) hard.push('要教资');
+    if (/(物理专业|数学专业|汉语言|体育教育|法学|数学系)/.test(block)) hard.push('专业限定');
+    if (/(国防科大|湖南师范|一师范|长理|长沙理工|师范大学)/.test(block)) hard.push('院校限定');
+    if (/信息费/.test(block)) hard.push('信息费');
+    if (/(全职|坐班|签一年|签.{0,2}合同)/.test(block)) hard.push('全职/长约');
+    if (NOT_TUTOR.test(block) && !TUTOR_OK.test(block)) hard.push('非家教岗');
+    if (/(高考成绩|高考分|高考.{0,6}成绩|130\s*\+|学信网)/.test(block)) soft.push('要高考成绩');
+    if (/(经验丰富|带过四大名校|较长.{0,3}高三|多年经验)/.test(block)) soft.push('要丰富经验');
+    if (/(化学|生物)/.test(block)) soft.push('含化学/生物');
+    if (/(女优先|优先女)/.test(block)) soft.push('女老师优先');
+    return { hard: hard, soft: soft };
+  }
+
+  function splitBlocks(text) {
+    var lines = norm(text).split(/\r?\n/);
+    var paras = [], buf = [];
+    function flush() { if (buf.join('').trim()) paras.push(buf.join('\n').trim()); buf = []; }
+    function strongStart(t) {
+      if (/^【编号】|^【家庭单】/.test(t)) return true;
+      if (/^#?(今天试课|本周试课)/.test(t)) return true;
+      if (/^[A-Z]{2,4}\d{3,6}/.test(t)) return true;
+      if (/^b\d{4}/.test(t)) return true;
+      if (/^M\d{4}/.test(t)) return true;
+      if (/^长沙\d{4,}/.test(t)) return true;
+      if (/^\d{8,}/.test(t)) return true;
+      if (/^线上$/.test(t)) return true;
+      return false;
+    }
+    for (var i = 0; i < lines.length; i++) {
+      var t = lines[i].trim();
+      if (!t) { flush(); continue; }
+      if (/^(李老师|20\d{2}年\d+月\d+日.*|\d{1,2}[:：]\d{2})/.test(t) || /^[─—–]{2,}|^🐳/.test(t)) { flush(); continue; }
+      if (strongStart(t)) { flush(); buf.push(t); continue; }
+      buf.push(t);
+    }
+    flush();
+    var JUNK = /(科目|年级|薪资|课酬|课时|时薪|每小时|\d+\s*\/\s*[hH小时]|学生|学员)/;
+    return paras.filter(function (p) { return p.length > 6 && JUNK.test(p); });
+  }
+
+  function parse(text) {
+    return splitBlocks(text).map(function (raw) {
+      var g = pickGrade(raw);
+      var pay = parsePay(raw);
+      var area = pickArea(raw);
+      var f = flags(raw);
+      return {
+        raw: raw,
+        id: pickId(raw),
+        grade: g,
+        gradeCat: GRADE_CAT[g] || g,
+        subjects: pickSubjects(raw),
+        time: pickTime(raw),
+        pay: pay,
+        area: area,
+        gender: pickGender(raw),
+        hard: f.hard,
+        soft: f.soft
+      };
+    });
+  }
+
+  function classify(it, cfg) {
+    var reasons = [], softReasons = [];
+    var isPrimary = it.gradeCat === '小学';
+    var floor = isPrimary ? cfg.primaryMin : cfg.minPay;
+    var margin = isPrimary ? 10 : 20;
+    if (!it.gradeCat || cfg.grades.indexOf(it.gradeCat) < 0) reasons.push('年级：' + (it.grade || '认不出'));
+    if (cfg.subjects && cfg.subjects.length && !(it.subjects || []).some(function (s) { return cfg.subjects.indexOf(s) >= 0; })) {
+      reasons.push('科目：' + ((it.subjects || []).join('/') || '认不出'));
+    }
+    if (cfg.maleOnly && it.gender === 'female') reasons.push('限女老师');
+    if (cfg.hardOnly && it.hard.length) reasons.push(it.hard.join('、'));
+    if (it.area.tier === 0) softReasons.push('位置认不出');
+    else if (it.area.tier === 2 && cfg.areas.indexOf('2') < 0) softReasons.push('位置较远（' + it.area.name + '）');
+    else if (it.area.tier >= 3 && cfg.areas.indexOf(String(it.area.tier)) < 0) reasons.push('位置：' + it.area.name);
+    if (it.pay && it.pay.hourly < floor) {
+      if (it.pay.hourly >= floor - margin) softReasons.push('单价 ' + Math.round(it.pay.hourly) + '/h 略低');
+      else reasons.push('单价 ' + Math.round(it.pay.hourly) + '/h 太低');
+    }
+    if (!it.pay) softReasons.push('没认出单价');
+    it.soft.forEach(function (s) {
+      if (s === '女老师优先' && cfg.maleOnly) softReasons.push(s);
+      else if (s !== '女老师优先') softReasons.push(s);
+    });
+    if (reasons.length) return { verdict: 'bad', reasons: reasons, soft: softReasons };
+    if (softReasons.length) return { verdict: 'warn', reasons: [], soft: softReasons };
+    return { verdict: 'ok', reasons: [], soft: [] };
+  }
+
+  function run(text, cfg) {
+    var items = parse(text);
+    items.forEach(function (it) { var c = classify(it, cfg); it.verdict = c.verdict; it.reasons = c.reasons; it.soft = c.soft; });
+    return items;
+  }
+
+  return { parse: parse, classify: classify, run: run, parsePay: parsePay, pickArea: pickArea, pickGrade: pickGrade, splitBlocks: splitBlocks };
+})();
+/* ENGINE-END */
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var last = [], filter = 'all', sortKey = 'verdict', sortDir = 1;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function tagClass(m) {
+    if (/女/.test(m)) return 't-gender';
+    if (/研究生|毕业|大四|教资|学历|院校|专业/.test(m)) return 't-edu';
+    if (/位置|通勤|远/.test(m)) return 't-pos';
+    if (/单价|太低|略低/.test(m)) return 't-pay';
+    if (/经验|四大/.test(m)) return 't-exp';
+    if (/科目/.test(m)) return 't-subj';
+    return '';
+  }
+  function keyOf(it, k) {
+    switch (k) {
+      case 'id': return it.id || 'zzz';
+      case 'grade': return it.grade || '';
+      case 'subj': return (it.subjects || []).join('');
+      case 'area': return it.area.tier * 10 + (it.area.name || '');
+      case 'pay': return it.pay ? it.pay.hourly : -1;
+      case 'time': return it.time || '';
+      case 'gender': return it.gender === 'female' ? 0 : it.gender === 'male' ? 1 : 2;
+      case 'verdict': return it.verdict === 'ok' ? 0 : it.verdict === 'warn' ? 1 : 2;
+      default: return '';
+    }
+  }
+
+  // 按 CONFIG.defaults 生成条件控件
+  function buildControls() {
+    var g = ['高一', '高二', '高三', '初一', '初二', '初三', '小学'];
+    $('gradeBox').innerHTML = g.map(function (v) {
+      return '<label class="row"><input type="checkbox" class="g" value="' + v + '">' + (v === '小学' ? '小学及以下' : v) + '</label>';
+    }).join('');
+    $('subjBox').innerHTML = Object.keys(CONFIG.subjects).map(function (v) {
+      var label = v === '数学' ? '数学（含奥数）' : v === '全科' ? '全科/作业/伴读' : v === '其他' ? '语文/化学等' : v;
+      return '<label class="row"><input type="checkbox" class="s" value="' + v + '">' + label + '</label>';
+    }).join('');
+    $('areaBox').innerHTML = Object.keys(CONFIG.city.tiers).map(function (k) {
+      return '<label class="row"><input type="checkbox" class="a" value="' + k + '">' + CONFIG.city.tiers[k] + '</label>';
+    }).join('');
+    var d = CONFIG.defaults;
+    document.querySelectorAll('.g').forEach(function (el) { el.checked = d.grades.indexOf(el.value) >= 0; });
+    document.querySelectorAll('.s').forEach(function (el) { el.checked = d.subjects.indexOf(el.value) >= 0; });
+    document.querySelectorAll('.a').forEach(function (el) { el.checked = d.areas.indexOf(Number(el.value)) >= 0; });
+    $('minPay').value = d.minPay;
+    $('primaryMin').value = d.primaryMin;
+    $('maleOnly').checked = d.maleOnly;
+    $('hardOnly').checked = d.hardOnly;
+  }
+
+  function cfg() {
+    var grades = [].slice.call(document.querySelectorAll('.g:checked')).map(function (x) { return x.value; });
+    var areas = [].slice.call(document.querySelectorAll('.a:checked')).map(function (x) { return x.value; });
+    var subjects = [];
+    [].slice.call(document.querySelectorAll('.s:checked')).forEach(function (x) {
+      subjects = subjects.concat(CONFIG.subjects[x.value] || [x.value]);
+    });
+    return {
+      grades: grades, areas: areas, subjects: subjects,
+      minPay: Number($('minPay').value) || 0,
+      primaryMin: Number($('primaryMin').value) || 0,
+      maleOnly: $('maleOnly').checked, hardOnly: $('hardOnly').checked
+    };
+  }
+
+  function rowHtml(it, i) {
+    var v = it.verdict === 'ok' ? '✅' : it.verdict === 'warn' ? '⚠️' : '❌';
+    var tags = [].concat(it.reasons || [], it.soft || []).map(function (m) {
+      return '<span class="tag ' + tagClass(m) + '">' + esc(m) + '</span>';
+    }).join('') || '<span class="none">—</span>';
+    var pay = it.pay ? Math.round(it.pay.hourly) + '/h' : '<span class="none">—</span>';
+    var g = it.grade || '<span class="none">—</span>';
+    var subj = (it.subjects || []).slice(0, 3).join('/') || '<span class="none">—</span>';
+    var area = it.area.name || '<span class="none">—</span>';
+    var time = it.time ? esc(it.time) : '<span class="none">—</span>';
+    var gender = it.gender === 'female' ? '女' : it.gender === 'male' ? '男' : '不限';
+    return '<tr class="r ' + it.verdict + '" data-i="' + i + '">'
+      + '<td>' + v + '</td><td class="id">' + esc(it.id || '(无号)') + '</td><td>' + g + '</td><td>' + subj + '</td><td>' + area + '</td>'
+      + '<td class="pay">' + pay + '</td><td>' + time + '</td><td>' + gender + '</td><td>' + tags + '</td></tr>'
+      + '<tr class="rawrow hide"><td colspan="9"><pre>' + esc(it.raw) + '</pre></td></tr>';
+  }
+
+  function visible() {
+    return last.filter(function (x) { return filter === 'all' || x.verdict === filter; });
+  }
+
+  function render() {
+    last = Engine.run($('raw').value, cfg());
+    var n = { ok: 0, warn: 0, bad: 0 };
+    last.forEach(function (x) { n[x.verdict]++; });
+    $('stat').innerHTML = '共 <b>' + last.length + '</b> 条 ｜ ✅ 可投 <b>' + n.ok + '</b> ｜ ⚠️ 差一条 <b>' + n.warn + '</b> ｜ ❌ 不符合 <b>' + n.bad + '</b>';
+    var list = visible().sort(function (a, b) {
+      var x = keyOf(a, sortKey), y = keyOf(b, sortKey);
+      if (x === y) return 0;
+      return (x > y ? 1 : -1) * sortDir;
+    });
+    $('out').innerHTML = list.map(function (it) { return rowHtml(it, last.indexOf(it)); }).join('')
+      || '<tr><td colspan="9" class="none" style="padding:16px">没有结果</td></tr>';
+  }
+
+  $('out').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr.r');
+    if (!tr) return;
+    var raw = tr.nextElementSibling;
+    if (raw && raw.classList.contains('rawrow')) raw.classList.toggle('hide');
+  });
+  document.querySelectorAll('.tb th[data-k]').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var k = th.getAttribute('data-k');
+      if (k === sortKey) sortDir = -sortDir; else { sortKey = k; sortDir = 1; }
+      render();
+    });
+  });
+  document.querySelectorAll('.tab').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      filter = b.getAttribute('data-f');
+      render();
+    });
+  });
+  $('run').addEventListener('click', render);
+  $('clear').addEventListener('click', function () { $('raw').value = ''; $('out').innerHTML = ''; $('stat').textContent = '还没有结果'; });
+  $('demo').addEventListener('click', function () {
+    $('raw').value = DEMO;
+    render();
+  });
+  $('copy').addEventListener('click', function () {
+    var list = visible().filter(function (x) { return filter === 'all' ? x.verdict !== 'bad' : true; });
+    if (!list.length) return alert('没有可复制的条目，先点“筛选”');
+    var text = list.map(function (it) {
+      return (it.id ? it.id + '｜' : '') + (it.grade || '') + ' ' + ((it.subjects || []).join('/') || '') + (it.pay ? '｜' + Math.round(it.pay.hourly) + '/h' : '') + '\n' + it.raw;
+    }).join('\n\n──────\n\n');
+    navigator.clipboard.writeText(text).then(function () { alert('已复制 ' + list.length + ' 条（含原文）'); }, function () { alert('复制失败，可以手动选中复制'); });
+  });
+  $('csv').addEventListener('click', function () {
+    var list = visible();
+    if (!list.length) return alert('没有结果');
+    var cell = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+    var rows = [['判定', '单号', '年级', '科目', '位置', '时薪', '时间', '性别', '卡点', '原文']];
+    list.forEach(function (it) {
+      rows.push([
+        it.verdict === 'ok' ? '可投' : it.verdict === 'warn' ? '差一条' : '不符合',
+        it.id, it.grade, (it.subjects || []).join('/'), it.area.name,
+        it.pay ? Math.round(it.pay.hourly) : '', it.time,
+        it.gender === 'female' ? '女' : it.gender === 'male' ? '男' : '不限',
+        [].concat(it.reasons, it.soft).join('；'), it.raw
+      ]);
+    });
+    var csv = '\ufeff' + rows.map(function (r) { return r.map(cell).join(','); }).join('\r\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '家教单筛选结果.csv';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  document.querySelectorAll('.g,.a,.s,#minPay,#primaryMin,#maleOnly,#hardOnly').forEach(function (el) {
+    el.addEventListener('change', function () { if ($('raw').value.trim()) render(); });
+  });
+  $('raw').addEventListener('input', function () { if ($('raw').value.trim().length > 40) render(); });
+
+  var DEMO = [
+    'ACS00000001',
+    '年级及科目:高一数学',
+    '一周次数:一周1次 1次/2h',
+    '大概位置:岳麓区某小区',
+    '老师性别要求:男',
+    '薪资：100-120/h',
+    '',
+    'LLS0000002   示例中学附近',
+    '孩子年级：初二',
+    '科目：数学',
+    '课酬：70/h',
+    '老师性别：女',
+    '辅导时间：周六上午2小时',
+    '上门地址：雨花区某小区'
+  ].join('\n');
+
+  buildControls();
+})();
+</script>
+</body>
+</html>
